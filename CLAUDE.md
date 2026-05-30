@@ -203,3 +203,117 @@ All runtime state is profile-aware via `get_hermes_home()` — never hardcode `~
 | `~/.hermes/memories/` | Persistent memory (MEMORY.md, USER.md) |
 | `~/.hermes/logs/` | agent.log, errors.log, gateway.log |
 | `~/.hermes/cron/` | Scheduled job data |
+
+---
+
+## This Deployment (Peter's WSL2 Install)
+
+Context for Claude Code sessions working on this specific installation.
+Last updated: 2026-05-30.
+
+### Environment
+
+- **Single Hermes install** running in **WSL2 Ubuntu** on a Windows machine. The root filesystem lives on the D: drive.
+  - `D:\home\peter\.hermes\` and `\\wsl.localhost\Ubuntu\home\peter\.hermes\` are the **same files** — two views of the same WSL filesystem.
+- **Run shell commands in WSL:** `wsl -d Ubuntu -- bash -lc "…"`
+  - The plain Git-Bash shell is a sandbox — it does NOT reach the real install. Only `wsl -d Ubuntu` (or paths via `\\wsl.localhost\Ubuntu\…`) does.
+- **Hardware:** Ryzen 3 4300U, 15 GB RAM. WSL is configured with 9 GB RAM + 16 GB swap (`.wslconfig`). Browser + agents + Docker can exhaust this — avoid running the worker profile (`hermes -p worker`) casually.
+
+### Running Services
+
+| Service | How to check | Notes |
+|---------|-------------|-------|
+| Gateway | `systemctl --user status hermes-gateway.service` | Auto-starts via systemd user + linger + `hermes-wsl-autostart.vbs` on Windows logon |
+| Dashboard | `systemctl --user status hermes-dashboard.service` | http://localhost:9119. Stop with `systemctl --user stop hermes-dashboard.service` — NOT `hermes dashboard --stop` (service restarts it) |
+
+### Models (OpenRouter)
+
+- **Interactive / `default` profile:** `z-ai/glm-4.5-air:free` (free tier)
+- **Background / workers / auxiliary:** `deepseek/deepseek-v4-flash` (pennies, reliable)
+- Keys: `.env OPENROUTER_API_KEY`, also mirrored in `config.yaml openrouter.api_key`
+- `auxiliary.*` models are routed to `provider: openrouter` + `deepseek-v4-flash`. Do NOT revert to `provider: auto` — it 404s on the Nous endpoint.
+
+### Active Platforms
+
+- **Telegram:** connected, bot `@Peters_hermesagent_bot`
+- **api_server:** port 8642
+- **webhook:** port 8644
+- Discord: disabled
+
+### Multi-Agent / Kanban
+
+Dispatcher is embedded in the gateway (60s poll). Three profiles:
+
+| Profile | Role | Model |
+|---------|------|-------|
+| `default` | interactive / free | GLM-4.5-air:free |
+| `director` | orchestrator | deepseek-v4-flash |
+| `worker` | executor | deepseek-v4-flash |
+
+### Cron Routines
+
+**All cron jobs must be in the `default` profile** — the gateway only fires the running profile's jobs.
+
+| Job | Schedule | Notes |
+|-----|----------|-------|
+| Morning briefing | `0 8 * * *` | |
+| Finance monitor | `30 16 * * 1-5` | Alpaca, `[SILENT]` tag |
+| AI news watcher | `0 9 * * *` | |
+| Plaud new-notes sync | `0 7 * * *` | `--no-agent`, runs `~/.hermes/scripts/plaud_pull_new.py` |
+
+Check with `hermes cron list` / `hermes cron status`.
+
+### MCP Servers (active)
+
+Notion, Filesystem, Firecrawl/fetch, Playwright, Sequential-Thinking, Alpaca (paper), yfinance.
+Disabled (broken upstream): sqlite, puppeteer.
+
+### Browser Automation
+
+- System **Google Chrome** at `/usr/bin/google-chrome` + Playwright at `~/.hermes/state/pw/`
+- Playwright's bundled Chromium does NOT install on Ubuntu 26.04 ("resolute") — always use system Chrome
+- Visible window requires WSLg (`DISPLAY=:0`); headless works without it
+
+### Key Files Under `~/.hermes/`
+
+| Path | Purpose |
+|------|---------|
+| `config.yaml`, `.env` | Main settings and secrets |
+| `config.yaml.bak.*` | Backups (including `.preFix_`, `.preAux`) |
+| `profiles/{default,director,worker}/` | Per-profile config and .env |
+| `skills/integrations/vinsolutions-followups/SKILL.md` | VinSolutions follow-up workflow (draft & confirm safety) |
+| `skills/playwright-mcp-wsl-setup/SKILL.md` | Corrected Playwright/WSL setup instructions |
+| `scripts/plaud_pull_new.py` | Plaud notes sync script |
+| `state/pw/` | Playwright state |
+| `state/vinsolutions-profile/` | Persistent VinSolutions browser session |
+| `state/plaud-cache/`, `state/vin-discovery/` | Plaud cache, VinSolutions login screenshots |
+| `logs/{agent,errors,gateway}.log` | Live logs |
+
+Dev reference (Windows side): `C:\Users\peter\.claude\projects\C--Users-peter\memory\hermes_wsl_migration.md` + `hermes_architecture_reference.md`.
+
+### Credential Locations (not values)
+
+- OpenRouter: `.env OPENROUTER_API_KEY`
+- Firecrawl: `.env FIRECRAWL_API_KEY`
+- Telegram: `.env TELEGRAM_BOT_TOKEN`
+- VinSolutions/Cox Bridge SSO: `.env VINSOLUTIONS_USER` / `VINSOLUTIONS_PASS`; 2FA → email code (see `.env` for address)
+- Alpaca (paper), Notion: `config.yaml mcp_servers.*.env`
+- Plaud token: `~/.plaud/.env`
+
+### Pending Action Items
+
+1. **Plaud token — DEAD.** Session was invalidated server-side; the token in Chrome == the one in `~/.plaud/.env`, both 401. Fully log out then log back in at https://web.plaud.ai (not just reopen the tab), then re-extract the token.
+
+2. **Telegram home channel — not set.** `TELEGRAM_HOME_CHANNEL` is unset, so cron routines compute but don't deliver. DM `@Peters_hermesagent_bot` once, then set the returned chat ID as the home channel in config.
+
+3. **VinSolutions follow-up skill — login automation in progress.** Cox Bridge SSO flow: username → Next → password → Sign in → "Verify your identity" → choose Email → code field. Sub-agent was completing the 2FA + screen-mapping; check `~/.hermes/state/vin-discovery/` screenshots. For fully autonomous runs, Hermes needs Gmail MCP access to read the 2FA code (code goes to the email in `.env VINSOLUTIONS_2FA_EMAIL`). **Skill safety: drafts messages for approval by default — do not change without explicit instruction.**
+
+4. **`hermes update` — queued.** Back up `config.yaml` first; verify custom fixes (auxiliary model routing, etc.) survive; restore from `.bak` if needed.
+
+### Operational Gotchas
+
+- **WSL instability under load** can throw `Wsl/Service/E_UNEXPECTED`. Recover: `wsl --terminate Ubuntu` then `wsl -d Ubuntu`. Never `wsl --shutdown` mid-task (kills gateway and dashboard).
+- **Per-profile cron:** gateway only fires the running profile's (`default`) jobs. Keep all routines in `default`, or use `--profile` flag (sequential, not parallel).
+- **`hermes -p worker …` boots the worker profile's full MCP stack** — heavy enough to wedge WSL on this machine.
+- **`~/.hermes/kanban/app.py` (port 5675) is corrupted** — a leftover with wrong content. The real dashboard is `hermes dashboard` at port 9119.
+- **Native Windows Hermes is retired.** Scheduled tasks `Hermes_Gateway` / `Hermes_Gateway_donna` were disabled and the orphaned process killed. Do not re-enable — it fights WSL over the Telegram bot token.
