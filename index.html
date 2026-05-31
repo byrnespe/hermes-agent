@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes Data-Viz Agent — Knowledge Cards</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    html { font-family: 'Inter', system-ui, sans-serif; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .card-glow {
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.15), 0 4px 24px rgba(99,102,241,0.08);
+    }
+    .step-connector::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: -1.5rem;
+      width: 1.5rem;
+      height: 2px;
+      background: linear-gradient(90deg, #6366f1, #a855f7);
+      opacity: 0.4;
+    }
+    .tag { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
+    #chart-output .plotly-graph-div { border-radius: 0.75rem; overflow: hidden; }
+    .source-badge { @apply inline-flex items-center gap-1.5 text-xs text-slate-400 mt-2; }
+    .demo-preset:hover { border-color: #6366f1; background: rgba(99,102,241,0.04); }
+    select option { background: #1e1e2e; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+<!-- ─── NAV ────────────────────────────────────────────────────────────────────────── -->
+<nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+  <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">H</div>
+      <span class="font-semibold text-white">Hermes</span>
+      <span class="text-slate-600">/</span>
+      <span class="text-slate-400 text-sm">data-viz-agent</span>
+    </div>
+    <div class="flex items-center gap-4 text-sm">
+      <a href="https://github.com/byrnespe/hermes-agent" target="_blank" rel="noopener"
+         class="text-slate-400 hover:text-white transition-colors flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.341-3.369-1.341-.454-1.154-1.11-1.462-1.11-1.462-.907-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.891 1.529 2.341 1.087 2.912.832.091-.647.349-1.087.635-1.337-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.744 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── HERO ────────────────────────────────────────────────────────────────────────── -->
+<section class="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
+  <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-xs font-medium mb-6">
+    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+    Live Demo · No backend required
+  </div>
+  <h1 class="text-5xl font-bold text-white mb-4 leading-tight">
+    Data questions → <span class="gradient-text">Knowledge Cards</span>
+  </h1>
+  <p class="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
+    The Hermes data-viz agent turns natural-language questions into
+    interactive, source-cited charts using three tools:
+    <code class="text-indigo-300 text-sm">read_local_data</code>,
+    <code class="text-indigo-300 text-sm">fetch_web_data</code>, and
+    <code class="text-indigo-300 text-sm">make_card</code>.
+  </p>
+
+  <!-- Workflow steps -->
+  <div class="flex flex-wrap justify-center gap-3 mb-14">
+    <div class="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm step-connector">
+      <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center font-bold">1</span>
+      <span class="text-slate-300">Decide source</span>
+    </div>
+    <div class="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm step-connector">
+      <span class="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 text-xs flex items-center justify-center font-bold">2</span>
+      <span class="text-slate-300">Pull data</span>
+    </div>
+    <div class="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm step-connector">
+      <span class="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 text-xs flex items-center justify-center font-bold">3</span>
+      <span class="text-slate-300">Inspect schema</span>
+    </div>
+    <div class="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm step-connector">
+      <span class="w-6 h-6 rounded-full bg-fuchsia-500/20 text-fuchsia-400 text-xs flex items-center justify-center font-bold">4</span>
+      <span class="text-slate-300">Pick chart type</span>
+    </div>
+    <div class="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm">
+      <span class="w-6 h-6 rounded-full bg-pink-500/20 text-pink-400 text-xs flex items-center justify-center font-bold">5</span>
+      <span class="text-slate-300">Build &amp; cite</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── LIVE DEMO ────────────────────────────────────────────────────────────────────────── -->
+<section class="max-w-6xl mx-auto px-6 pb-20">
+  <div class="grid lg:grid-cols-5 gap-6">
+
+    <!-- Controls panel -->
+    <div class="lg:col-span-2 space-y-5">
+
+      <!-- Source -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 card-glow">
+        <h2 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M16 3H8L4 7h16l-4-4z"/></svg>
+          Step 1 — Data Source
+        </h2>
+
+        <!-- Presets -->
+        <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Quick presets</p>
+        <div class="space-y-2 mb-4" id="presets-container">
+          <button onclick="loadPreset('btc')" class="demo-preset w-full text-left px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-800/50 text-sm transition-all">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">₿</span>
+              <div>
+                <div class="text-slate-200 font-medium">Bitcoin price (365 days)</div>
+                <div class="text-slate-500 text-xs">CoinGecko API · line chart</div>
+              </div>
+            </div>
+          </button>
+          <button onclick="loadPreset('co2')" class="demo-preset w-full text-left px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-800/50 text-sm transition-all">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">🌍</span>
+              <div>
+                <div class="text-slate-200 font-medium">Global CO₂ emissions</div>
+                <div class="text-slate-500 text-xs">Our World in Data · bar chart</div>
+              </div>
+            </div>
+          </button>
+          <button onclick="loadPreset('pop')" class="demo-preset w-full text-left px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-800/50 text-sm transition-all">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">👥</span>
+              <div>
+                <div class="text-slate-200 font-medium">World population</div>
+                <div class="text-slate-500 text-xs">World Bank · line chart</div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Custom URL -->
+        <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Or enter a URL</p>
+        <div class="flex gap-2">
+          <input id="url-input" type="url" placeholder="https://… (JSON or CSV)"
+                 class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors" />
+          <button onclick="fetchURL()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition-colors">
+            Fetch
+          </button>
+        </div>
+
+        <!-- File upload -->
+        <p class="text-xs text-slate-500 mb-2 mt-4 uppercase tracking-wider">Or upload a CSV</p>
+        <label class="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-slate-700 hover:border-indigo-500 cursor-pointer transition-colors text-sm text-slate-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span id="file-label">Choose CSV file…</span>
+          <input id="file-input" type="file" accept=".csv,.tsv" class="hidden" onchange="loadFile(this)" />
+        </label>
+      </div>
+
+      <!-- Schema inspector -->
+      <div id="schema-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hidden card-glow">
+        <h2 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Step 3 — Schema &amp; Preview
+        </h2>
+        <div id="schema-content" class="space-y-1 text-xs font-mono"></div>
+        <div id="preview-table-wrapper" class="mt-3 overflow-x-auto"></div>
+      </div>
+
+      <!-- Chart config -->
+      <div id="chart-config" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hidden card-glow">
+        <h2 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Steps 4–5 — Build Card
+        </h2>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1.5">Chart type</label>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button onclick="setChartType('line')" id="btn-line" class="chart-btn px-2 py-1.5 rounded-lg border text-xs font-medium transition-all border-indigo-500 bg-indigo-500/20 text-indigo-300">Line</button>
+              <button onclick="setChartType('bar')" id="btn-bar" class="chart-btn px-2 py-1.5 rounded-lg border text-xs font-medium transition-all border-slate-700 text-slate-400 hover:border-indigo-500">Bar</button>
+              <button onclick="setChartType('scatter')" id="btn-scatter" class="chart-btn px-2 py-1.5 rounded-lg border text-xs font-medium transition-all border-slate-700 text-slate-400 hover:border-indigo-500">Scatter</button>
+              <button onclick="setChartType('pie')" id="btn-pie" class="chart-btn px-2 py-1.5 rounded-lg border text-xs font-medium transition-all border-slate-700 text-slate-400 hover:border-indigo-500">Pie</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1.5">X column</label>
+            <select id="x-col" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"></select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1.5">Y column</label>
+            <select id="y-col" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"></select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1.5">Title</label>
+            <input id="chart-title" type="text" placeholder="Chart title"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" />
+          </div>
+          <button onclick="buildCard()" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-xl text-sm font-semibold text-white transition-all shadow-lg shadow-indigo-500/20">
+            Build Knowledge Card
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart output -->
+    <div class="lg:col-span-3 flex flex-col gap-5">
+
+      <!-- Empty state -->
+      <div id="empty-state" class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center p-16 text-center min-h-96">
+        <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-4">
+          <svg class="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+        <h3 class="text-slate-400 font-medium mb-1">Your knowledge card appears here</h3>
+        <p class="text-slate-600 text-sm">Load a preset or enter a URL to get started</p>
+      </div>
+
+      <!-- Loading state -->
+      <div id="loading-state" class="hidden flex-1 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center p-16 min-h-96">
+        <div class="flex items-center gap-3 text-slate-400">
+          <svg class="animate-spin w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <span class="text-sm" id="loading-text">Fetching data…</span>
+        </div>
+      </div>
+
+      <!-- Chart output -->
+      <div id="chart-output" class="hidden bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <h3 id="card-title-display" class="text-white font-semibold text-sm"></h3>
+            <div id="source-display" class="source-badge"></div>
+          </div>
+          <button onclick="downloadCard()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-300 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Save HTML
+          </button>
+        </div>
+        <div id="plotly-container" class="p-4"></div>
+        <div class="px-4 pb-4">
+          <div id="takeaway-box" class="flex items-start gap-2.5 bg-indigo-950/50 border border-indigo-500/20 rounded-xl px-4 py-3 text-sm"></div>
+        </div>
+      </div>
+
+      <!-- Tool code preview -->
+      <div id="code-preview" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          Tool calls that generated this card
+        </h3>
+        <pre id="code-content" class="text-xs text-slate-400 font-mono whitespace-pre-wrap overflow-x-auto leading-relaxed"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TOOLS REFERENCE ───────────────────────────────────────────────────────────────────────── -->
+<section class="border-t border-slate-800 bg-slate-900/40">
+  <div class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-bold text-white text-center mb-2">Three tools. One workflow.</h2>
+    <p class="text-slate-500 text-center mb-10">Every knowledge card is produced by the same six-step loop.</p>
+    <div class="grid md:grid-cols-3 gap-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"/></svg>
+        </div>
+        <code class="text-indigo-300 text-sm font-mono">read_local_data(path)</code>
+        <p class="text-slate-400 text-sm mt-2">Reads a CSV, JSON, Excel, or TSV file from disk. Returns schema, 5-row preview, row count, and all records.</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/></svg>
+        </div>
+        <code class="text-violet-300 text-sm font-mono">fetch_web_data(url)</code>
+        <p class="text-slate-400 text-sm mt-2">Fetches a remote JSON API or CSV endpoint. Auto-detects format, returns the same schema + records envelope.</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center mb-4">
+          <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+        <code class="text-purple-300 text-sm font-mono">make_card(...)</code>
+        <p class="text-slate-400 text-sm mt-2">Renders an interactive Plotly HTML chart (line, bar, scatter, pie). Saves to <code class="text-xs text-slate-500">~/Desktop/cards/</code> with source citation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ────────────────────────────────────────────────────────────────────────── -->
+<footer class="border-t border-slate-800 py-8 text-center text-slate-600 text-sm">
+  <p>Built with <a href="https://github.com/byrnespe/hermes-agent" class="text-slate-500 hover:text-slate-300 transition-colors">Hermes Agent</a> · data-viz-agent skill</p>
+</footer>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────────────
+let currentRecords = [];
+let currentSource = '';
+let currentChartType = 'line';
+
+const PRESETS = {
+  btc: {
+    title: 'Bitcoin Price (Last 365 Days)',
+    chartType: 'line',
+    url: 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily',
+    transform: (d) => d.prices.map(([ts, price]) => ({
+      date: new Date(ts).toISOString().split('T')[0],
+      price_usd: Math.round(price)
+    })),
+    x: 'date', y: 'price_usd',
+    source: 'CoinGecko API'
+  },
+  co2: {
+    title: 'Top Emitters: CO₂ (2023)',
+    chartType: 'bar',
+    data: [
+      {country:'China', co2_mt: 11397}, {country:'USA', co2_mt: 4745},
+      {country:'India', co2_mt: 2820}, {country:'Russia', co2_mt: 1769},
+      {country:'Japan', co2_mt: 1056}, {country:'Germany', co2_mt: 675},
+      {country:'South Korea', co2_mt: 621}, {country:'Canada', co2_mt: 571},
+      {country:'Iran', co2_mt: 748}, {country:'Saudi Arabia', co2_mt: 714}
+    ],
+    x: 'country', y: 'co2_mt',
+    source: 'Global Carbon Project 2023'
+  },
+  pop: {
+    title: 'World Population 1960–2023',
+    chartType: 'line',
+    data: [
+      {year:'1960',pop_b:3.03},{year:'1965',pop_b:3.34},{year:'1970',pop_b:3.70},
+      {year:'1975',pop_b:4.07},{year:'1980',pop_b:4.43},{year:'1985',pop_b:4.83},
+      {year:'1990',pop_b:5.32},{year:'1995',pop_b:5.72},{year:'2000',pop_b:6.09},
+      {year:'2005',pop_b:6.47},{year:'2010',pop_b:6.91},{year:'2015',pop_b:7.38},
+      {year:'2020',pop_b:7.76},{year:'2023',pop_b:8.05}
+    ],
+    x: 'year', y: 'pop_b',
+    source: 'World Bank / UN Population Division'
+  }
+};
+
+// ─── UI helpers ─────────────────────────────────────────────────────────────────────────
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+function setLoading(msg) {
+  hide('empty-state'); hide('chart-output'); hide('code-preview');
+  show('loading-state');
+  document.getElementById('loading-text').textContent = msg || 'Loading…';
+}
+function setChartType(t) {
+  currentChartType = t;
+  document.querySelectorAll('.chart-btn').forEach(b => {
+    b.classList.remove('border-indigo-500','bg-indigo-500/20','text-indigo-300');
+    b.classList.add('border-slate-700','text-slate-400');
+  });
+  const btn = document.getElementById('btn-' + t);
+  if (btn) {
+    btn.classList.add('border-indigo-500','bg-indigo-500/20','text-indigo-300');
+    btn.classList.remove('border-slate-700','text-slate-400');
+  }
+}
+
+function populateColumns(records) {
+  if (!records.length) return;
+  const cols = Object.keys(records[0]);
+  const xSel = document.getElementById('x-col');
+  const ySel = document.getElementById('y-col');
+  xSel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join('');
+  ySel.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Auto-pick: first col for X, last numeric col for Y
+  const numCols = cols.filter(c => typeof records[0][c] === 'number' || !isNaN(parseFloat(records[0][c])));
+  if (numCols.length) {
+    ySel.value = numCols[numCols.length - 1];
+    const xCands = cols.filter(c => c !== ySel.value);
+    if (xCands.length) xSel.value = xCands[0];
+  }
+}
+
+function showSchema(records, source) {
+  if (!records.length) return;
+  const schema = {};
+  const sample = records.slice(0, 10);
+  Object.keys(records[0]).forEach(k => {
+    const vals = sample.map(r => r[k]).filter(v => v !== null && v !== undefined && v !== '');
+    const types = new Set(vals.map(v => {
+      if (typeof v === 'boolean') return 'boolean';
+      if (typeof v === 'number') return 'number';
+      if (!isNaN(parseFloat(v)) && isFinite(v)) return 'number';
+      return 'string';
+    }));
+    schema[k] = [...types].join(' | ');
+  });
+
+  const schemaEl = document.getElementById('schema-content');
+  schemaEl.innerHTML = Object.entries(schema).map(([k, t]) =>
+    `<div class="flex items-center gap-2 py-0.5">
+      <span class="text-slate-300">${k}</span>
+      <span class="text-slate-600">·</span>
+      <span class="${t.includes('number') ? 'text-teal-400' : 'text-amber-400'}">${t}</span>
+    </div>`
+  ).join('');
+
+  // Tiny preview table
+  const previewCols = Object.keys(records[0]).slice(0, 5);
+  const previewRows = records.slice(0, 3);
+  const table = `<table class="text-xs w-full">
+    <thead><tr>${previewCols.map(c => `<th class="text-left text-slate-500 pb-1 pr-3 font-normal">${c}</th>`).join('')}</tr></thead>
+    <tbody>${previewRows.map(r => `<tr>${previewCols.map(c => `<td class="text-slate-400 pr-3 pb-0.5">${String(r[c]).slice(0,16)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>
+  <p class="text-slate-600 mt-1.5">${records.length} rows total</p>`;
+  document.getElementById('preview-table-wrapper').innerHTML = table;
+
+  show('schema-panel');
+}
+
+// ─── Data loading ─────────────────────────────────────────────────────────────────────
+async function loadPreset(key) {
+  const p = PRESETS[key];
+  setLoading('Fetching data…');
+  try {
+    let records;
+    if (p.url) {
+      const resp = await fetch(p.url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const raw = await resp.json();
+      records = p.transform ? p.transform(raw) : (Array.isArray(raw) ? raw : raw.data || raw.records || [raw]);
+    } else {
+      records = p.data;
+    }
+    currentRecords = records;
+    currentSource = p.source;
+    document.getElementById('chart-title').value = p.title;
+    setChartType(p.chartType);
+    showSchema(records, p.source);
+    populateColumns(records);
+    show('chart-config');
+    hide('loading-state');
+    show('empty-state'); // show placeholder until build
+    buildCardWith(records, p.chartType, p.x, p.y, p.title, p.source);
+  } catch(e) {
+    hide('loading-state');
+    show('empty-state');
+    alert('Failed to load preset: ' + e.message);
+  }
+}
+
+async function fetchURL() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  setLoading('Fetching ' + url + '…');
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ct = resp.headers.get('content-type') || '';
+    let records;
+    if (ct.includes('json') || url.endsWith('.json')) {
+      const raw = await resp.json();
+      records = Array.isArray(raw) ? raw : (raw.data || raw.records || raw.results || [raw]);
+    } else {
+      const text = await resp.text();
+      records = parseCSV(text);
+    }
+    currentRecords = records;
+    currentSource = url;
+    document.getElementById('chart-title').value = 'Data from ' + new URL(url).hostname;
+    showSchema(records, url);
+    populateColumns(records);
+    show('chart-config');
+    hide('loading-state');
+    show('empty-state');
+  } catch(e) {
+    hide('loading-state');
+    show('empty-state');
+    alert('Failed to fetch URL: ' + e.message + '\n\nNote: the URL must allow CORS.');
+  }
+}
+
+function loadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('file-label').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const records = parseCSV(text);
+    currentRecords = records;
+    currentSource = file.name;
+    document.getElementById('chart-title').value = file.name.replace(/\.[^.]+$/, '');
+    showSchema(records, file.name);
+    populateColumns(records);
+    show('chart-config');
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const delim = lines[0].includes('\t') ? '\t' : ',';
+  const headers = lines[0].split(delim).map(h => h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(line => {
+    const vals = line.split(delim);
+    const obj = {};
+    headers.forEach((h, i) => {
+      const v = (vals[i] || '').trim().replace(/^"|"$/g,'');
+      obj[h] = isNaN(v) || v === '' ? v : parseFloat(v);
+    });
+    return obj;
+  }).filter(r => Object.values(r).some(v => v !== ''));
+}
+
+// ─── Chart building ────────────────────────────────────────────────────────────────────
+function buildCard() {
+  if (!currentRecords.length) { alert('Load data first.'); return; }
+  const x = document.getElementById('x-col').value;
+  const y = document.getElementById('y-col').value;
+  const title = document.getElementById('chart-title').value || 'Chart';
+  buildCardWith(currentRecords, currentChartType, x, y, title, currentSource);
+}
+
+function buildCardWith(records, chartType, x, y, title, source) {
+  hide('empty-state'); hide('loading-state');
+
+  const xVals = records.map(r => r[x]);
+  const yVals = records.map(r => {
+    const v = r[y];
+    return typeof v === 'number' ? v : parseFloat(v);
+  });
+
+  const layout = {
+    title: { text: '' },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#94a3b8', family: 'Inter, system-ui, sans-serif', size: 12 },
+    margin: { t: 20, r: 20, b: 50, l: 55 },
+    xaxis: { gridcolor: 'rgba(255,255,255,0.05)', zerolinecolor: 'rgba(255,255,255,0.1)', tickfont: { size: 11 } },
+    yaxis: { gridcolor: 'rgba(255,255,255,0.05)', zerolinecolor: 'rgba(255,255,255,0.1)', tickfont: { size: 11 } },
+    colorway: ['#6366f1','#8b5cf6','#a855f7','#ec4899','#f43f5e'],
+    hoverlabel: { bgcolor: '#1e1e2e', bordercolor: '#6366f1', font: { color: '#e2e8f0' } },
+    autosize: true,
+    height: 360,
+  };
+
+  let traces = [];
+  if (chartType === 'line') {
+    traces = [{ x: xVals, y: yVals, type: 'scatter', mode: 'lines', name: y,
+      line: { color: '#6366f1', width: 2.5 },
+      fill: 'tozeroy', fillcolor: 'rgba(99,102,241,0.08)' }];
+  } else if (chartType === 'bar') {
+    traces = [{ x: xVals, y: yVals, type: 'bar', name: y,
+      marker: { color: xVals.map((_, i) => `rgba(${99+i*8},${102+i*4},241,0.85)`),
+                line: { width: 0 } } }];
+  } else if (chartType === 'scatter') {
+    traces = [{ x: xVals, y: yVals, type: 'scatter', mode: 'markers', name: y,
+      marker: { color: '#6366f1', size: 8, opacity: 0.8,
+                line: { color: '#818cf8', width: 1 } } }];
+  } else if (chartType === 'pie') {
+    traces = [{ labels: xVals, values: yVals, type: 'pie',
+      marker: { colors: ['#6366f1','#8b5cf6','#a855f7','#c084fc','#e879f9','#f0abfc','#818cf8','#a5b4fc'] },
+      hole: 0.35, textfont: { color: '#cbd5e1' } }];
+    delete layout.xaxis; delete layout.yaxis;
+  }
+
+  Plotly.react('plotly-container', traces, layout, {
+    responsive: true, displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d','select2d','toImage'],
+    displaylogo: false,
+  });
+
+  // Update header
+  document.getElementById('card-title-display').textContent = title;
+  document.getElementById('source-display').innerHTML =
+    `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+    Source: ${source}`;
+
+  // Takeaway
+  const numericVals = yVals.filter(v => !isNaN(v));
+  let takeaway = '';
+  if (numericVals.length) {
+    const mn = Math.min(...numericVals), mx = Math.max(...numericVals);
+    const avg = numericVals.reduce((a,b)=>a+b,0)/numericVals.length;
+    const fmt = n => n >= 1e9 ? (n/1e9).toFixed(2)+'B' : n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n.toFixed(2);
+    if (chartType === 'line') {
+      const first = numericVals[0], last = numericVals[numericVals.length-1];
+      const pct = first ? ((last-first)/Math.abs(first)*100).toFixed(1) : 0;
+      const dir = last > first ? '↑ up' : last < first ? '↓ down' : '→ flat';
+      takeaway = `${y} trended ${dir} ${Math.abs(pct)}% over the period (min ${fmt(mn)}, max ${fmt(mx)}).`;
+    } else if (chartType === 'bar') {
+      takeaway = `Highest ${y} is ${fmt(mx)} · avg ${fmt(avg)} across ${records.length} categories.`;
+    } else if (chartType === 'scatter') {
+      takeaway = `${y} ranges ${fmt(mn)}–${fmt(mx)} across ${numericVals.length} data points (avg ${fmt(avg)}).`;
+    } else if (chartType === 'pie') {
+      const total = numericVals.reduce((a,b)=>a+b,0);
+      takeaway = `Largest slice is ${(mx/total*100).toFixed(1)}% of the total (${records.length} categories).`;
+    }
+  } else {
+    takeaway = `Chart of ${y} by ${x} · ${records.length} rows.`;
+  }
+  document.getElementById('takeaway-box').innerHTML =
+    `<svg class="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span class="text-slate-300">${takeaway}</span>`;
+
+  // Code preview
+  const fetchCall = source.startsWith('http')
+    ? `fetch_web_data("${source}")`
+    : `read_local_data("${source}")`;
+  document.getElementById('code-content').textContent =
+`# Step 2 — Pull data
+result = ${fetchCall}
+# → {"schema": {...}, "preview": [...], "records": [...]}
+
+# Step 5 — Build card
+make_card(
+  records    = result["records"],
+  chart_type = "${chartType}",
+  x          = "${x}",
+  y          = "${y}",
+  title      = "${title}",
+  source     = "${source}",
+)
+# → {"saved_path": "~/Desktop/cards/${title.replace(/[^\w]/g,'_')}.html",
+#    "takeaway":   "${takeaway}"}`;
+
+  show('chart-output');
+  show('code-preview');
+
+  // Store for download
+  window._lastChart = { records, chartType, x, y, title, source, takeaway };
+}
+
+// ─── Download ─────────────────────────────────────────────────────────────────────────
+function downloadCard() {
+  if (!window._lastChart) return;
+  const { title, source, takeaway } = window._lastChart;
+  const plotlyDiv = document.getElementById('plotly-container');
+  const gd = plotlyDiv.querySelector('.js-plotly-plot');
+  if (!gd) return;
+  Plotly.toImage(gd, { format: 'svg', width: 900, height: 420 }).then(svgUrl => {
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>${title}</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>
+<style>body{background:#0f172a;color:#e2e8f0;font-family:Inter,sans-serif;margin:0;padding:24px}</style>
+</head><body>
+<h2 style="margin-bottom:4px;color:#fff">${title}</h2>
+<p style="color:#64748b;font-size:13px;margin-bottom:16px">Source: ${source}</p>
+<div id="chart"></div>
+<p style="color:#818cf8;font-size:13px;margin-top:12px">${takeaway}</p>
+<script>
+var data = ${JSON.stringify(gd.data)};
+var layout = ${JSON.stringify({...gd.layout, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:420})};
+Plotly.newPlot('chart', data, layout, {responsive:true, displaylogo:false});
+<\/script>
+</body></html>`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+    a.download = title.replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'_') + '.html';
+    a.click();
+  });
+}
+</script>
+</body>
+</html>
