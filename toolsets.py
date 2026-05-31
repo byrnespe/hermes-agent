@@ -70,6 +70,8 @@ _HERMES_CORE_TOOLS = [
     "kanban_unblock",
     # Computer use (macOS, gated on cua-driver being installed via check_fn)
     "computer_use",
+    # Data visualization — knowledge-card agent
+    "read_local_data", "fetch_web_data", "make_card",
 ]
 
 # Webhook events may originate from untrusted third-party content (for example,
@@ -323,8 +325,18 @@ TOOLSETS = {
     },
 
 
+    "data_viz": {
+        "description": (
+            "Data visualization tools for the knowledge-card agent: "
+            "read local data files, fetch remote JSON/CSV, and render "
+            "interactive Plotly HTML charts saved to the cards directory."
+        ),
+        "tools": ["read_local_data", "fetch_web_data", "make_card"],
+        "includes": [],
+    },
+
     # Scenario-specific toolsets
-    
+
     "debugging": {
         "description": "Debugging and troubleshooting toolkit",
         "tools": ["terminal", "process"],
